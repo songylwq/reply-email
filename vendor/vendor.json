@@ -1,0 +1,43 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "1+cPVpAKYn/XYq2uCF42GZP9gUk=",
+			"path": "github.com/emersion/go-imap",
+			"revision": "cfc6c581cf592705a35ccc6caf0c7bf73e4f5804",
+			"revisionTime": "2019-10-03T16:38:51Z"
+		},
+		{
+			"checksumSHA1": "tAJlF1/r5Pk30mnfCkUDaoB5UGI=",
+			"path": "github.com/emersion/go-imap/client",
+			"revision": "cfc6c581cf592705a35ccc6caf0c7bf73e4f5804",
+			"revisionTime": "2019-10-03T16:38:51Z"
+		},
+		{
+			"checksumSHA1": "lFIs+uJnzKYN5HxKyt5Iy5GHTO8=",
+			"path": "github.com/emersion/go-imap/commands",
+			"revision": "cfc6c581cf592705a35ccc6caf0c7bf73e4f5804",
+			"revisionTime": "2019-10-03T16:38:51Z"
+		},
+		{
+			"checksumSHA1": "z1HDq3+BrlyVUTW/vV1mAxMTJU8=",
+			"path": "github.com/emersion/go-imap/responses",
+			"revision": "cfc6c581cf592705a35ccc6caf0c7bf73e4f5804",
+			"revisionTime": "2019-10-03T16:38:51Z"
+		},
+		{
+			"checksumSHA1": "QMMkKqEgsE2UMMplYd8Kp+mC1TY=",
+			"path": "github.com/emersion/go-imap/utf7",
+			"revision": "cfc6c581cf592705a35ccc6caf0c7bf73e4f5804",
+			"revisionTime": "2019-10-03T16:38:51Z"
+		},
+		{
+			"checksumSHA1": "HcdYQm/p008bKhYmzt9wSzS+/Xs=",
+			"path": "github.com/emersion/go-sasl",
+			"revision": "240c8404624e076f633766c16adbe96c7ac516b7",
+			"revisionTime": "2019-08-17T08:31:25Z"
+		}
+	],
+	"rootPath": "github.com/reply-email"
+}

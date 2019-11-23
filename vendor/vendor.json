@@ -37,6 +37,12 @@
 			"path": "github.com/emersion/go-sasl",
 			"revision": "240c8404624e076f633766c16adbe96c7ac516b7",
 			"revisionTime": "2019-08-17T08:31:25Z"
+		},
+		{
+			"checksumSHA1": "yi+KJ1BlvhV0Mn9DZiDZoUFngZ0=",
+			"path": "github.com/golang/text",
+			"revision": "cbf43d21aaebfdfeb81d91a5f444d13a3046e686",
+			"revisionTime": "2019-11-15T12:05:43Z"
 		}
 	],
 	"rootPath": "github.com/reply-email"

@@ -7,6 +7,78 @@ import (
 	"time"
 )
 
+func main() {
+	findUnReadMail()
+}
+
+//查询未读
+func findUnReadMail() {
+	log.Println("开始查询新邮件")
+	c, err := client.DialTLS("imap.126.com:993", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("获取链接成功")
+	defer c.Logout()
+	// Login
+	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("登录邮箱成功")
+
+	for {
+		c.Select("test", false)
+
+		//筛选所有未读的邮件
+		criteria := imap.NewSearchCriteria()
+		criteria.WithoutFlags = []string{"\\Seen"}
+		uids, err := c.Search(criteria)
+		if err != nil {
+			log.Println(err)
+		}
+
+		log.Println(uids)
+
+		if 0 < len(uids) {
+			seqset := new(imap.SeqSet)
+			seqset.AddNum(uids...)
+
+			items := []imap.FetchItem{imap.FetchEnvelope, imap.FetchFlags}
+			messages := make(chan *imap.Message, len(uids))
+			err = c.Fetch(seqset, items, messages)
+
+			log.Println("c.Fetched")
+
+			for msg := range messages {
+				log.Println("* ", msg.Envelope.Subject, "--",  msg.Flags)
+			}
+
+			//将未读的邮件标记上已读
+			seqset = new(imap.SeqSet)
+			seqset.AddNum(uids...)
+			// First mark the message as deleted
+			item := imap.FormatFlagsOp(imap.AddFlags, true)
+			flags := []interface{}{imap.SeenFlag}
+			if err := c.Store(seqset, item, flags, nil); err != nil {
+				log.Fatal(err)
+			}
+			log.Println("都标记成已读了")
+		}
+
+		log.Println("暂时没有未读邮件")
+		time.Sleep(time.Second * 5)
+	}
+}
+
+
+//发送邮件
+
+//
+
+
+
+
+
 //func main() {
 //	log.Println("Connecting to server...")
 //
@@ -253,66 +325,66 @@ import (
 //}
 
 
-//查询未读邮件
-func main() {
-	log.Println("Connecting to server...")
-	// Connect to server
-	c, err := client.DialTLS("imap.126.com:993", nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Connected")
-	// Don't forget to logout
-	defer c.Logout()
-	// Login
-	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Logged in")
-
-	for {
-		c.Select("test", false)
-
-		//筛选所有未读的邮件
-		criteria := imap.NewSearchCriteria()
-		criteria.WithoutFlags = []string{"\\Seen"}
-		uids, err := c.Search(criteria)
-		if err != nil {
-			log.Println(err)
-		}
-
-		log.Println(uids)
-
-		if 0 < len(uids) {
-			seqset := new(imap.SeqSet)
-			seqset.AddNum(uids...)
-
-			items := []imap.FetchItem{imap.FetchEnvelope, imap.FetchFlags}
-			messages := make(chan *imap.Message, len(uids))
-			err = c.Fetch(seqset, items, messages)
-
-			log.Println("c.Fetched")
-
-			for msg := range messages {
-				log.Println("* ", msg.Envelope.Subject, "--",  msg.Flags)
-			}
-
-			//将未读的邮件标记上已读
-			seqset = new(imap.SeqSet)
-			seqset.AddNum(uids...)
-			// First mark the message as deleted
-			item := imap.FormatFlagsOp(imap.AddFlags, true)
-			flags := []interface{}{imap.SeenFlag}
-			if err := c.Store(seqset, item, flags, nil); err != nil {
-				log.Fatal(err)
-			}
-			log.Println("都标记成已读了")
-		}
-
-		log.Println("暂时没有未读邮件")
-		time.Sleep(time.Second * 5)
-	}
-}
+////查询未读邮件
+//func main() {
+//	log.Println("Connecting to server...")
+//	// Connect to server
+//	c, err := client.DialTLS("imap.126.com:993", nil)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	log.Println("Connected")
+//	// Don't forget to logout
+//	defer c.Logout()
+//	// Login
+//	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
+//		log.Fatal(err)
+//	}
+//	log.Println("Logged in")
+//
+//	for {
+//		c.Select("test", false)
+//
+//		//筛选所有未读的邮件
+//		criteria := imap.NewSearchCriteria()
+//		criteria.WithoutFlags = []string{"\\Seen"}
+//		uids, err := c.Search(criteria)
+//		if err != nil {
+//			log.Println(err)
+//		}
+//
+//		log.Println(uids)
+//
+//		if 0 < len(uids) {
+//			seqset := new(imap.SeqSet)
+//			seqset.AddNum(uids...)
+//
+//			items := []imap.FetchItem{imap.FetchEnvelope, imap.FetchFlags}
+//			messages := make(chan *imap.Message, len(uids))
+//			err = c.Fetch(seqset, items, messages)
+//
+//			log.Println("c.Fetched")
+//
+//			for msg := range messages {
+//				log.Println("* ", msg.Envelope.Subject, "--",  msg.Flags)
+//			}
+//
+//			//将未读的邮件标记上已读
+//			seqset = new(imap.SeqSet)
+//			seqset.AddNum(uids...)
+//			// First mark the message as deleted
+//			item := imap.FormatFlagsOp(imap.AddFlags, true)
+//			flags := []interface{}{imap.SeenFlag}
+//			if err := c.Store(seqset, item, flags, nil); err != nil {
+//				log.Fatal(err)
+//			}
+//			log.Println("都标记成已读了")
+//		}
+//
+//		log.Println("暂时没有未读邮件")
+//		time.Sleep(time.Second * 5)
+//	}
+//}
 
 
 

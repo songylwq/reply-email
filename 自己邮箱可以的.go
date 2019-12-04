@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"io"
 	"math/rand"
+	"crypto/tls"
 )
 
 //邮件对象
@@ -45,8 +46,8 @@ func main() {
 //查询未读
 func findUnReadMail() {
 	log.Println("开始查询新邮件")
-	//c, err := client.DialTLS("imap.126.com:993", nil)
-	c, err := client.Dial("mail.wangzihan.xyz:143")
+	c, err := client.DialTLS("mail.wangzihan.xyz:993", nil)
+	//c, err := client.Dial("mail.wangzihan.xyz:143")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -109,16 +110,16 @@ func findUnReadMail() {
 				log.Printf("邮件回复完成[%v]",repEmailAddr)
 			}
 
-			////将未读的邮件标记上已读
-			//seqset = new(imap.SeqSet)
-			//seqset.AddNum(uids...)
-			//// First mark the message as deleted
-			//item := imap.FormatFlagsOp(imap.AddFlags, true)
-			//flags := []interface{}{imap.SeenFlag}
-			//if err := c.Store(seqset, item, flags, nil); err != nil {
-			//	log.Fatal(err)
-			//}
-			//log.Println("都标记成已读了")
+			//将未读的邮件标记上已读
+			seqset = new(imap.SeqSet)
+			seqset.AddNum(uids...)
+			// First mark the message as deleted
+			item := imap.FormatFlagsOp(imap.AddFlags, true)
+			flags := []interface{}{imap.SeenFlag}
+			if err := c.Store(seqset, item, flags, nil); err != nil {
+				log.Fatal(err)
+			}
+			log.Println("都标记成已读了")
 		}
 
 		log.Println("暂时没有未读邮件")
@@ -138,31 +139,44 @@ func SendMail(mailTo string, subject string, body string) error {
 	//	"port": "465",
 	//}
 	mailConn := map[string]string{
-		"user": "songyl@wangzihan.xyz",
+		"user": "songyl",
 		"pass": "4@2xade53",
 		"host": "mail.wangzihan.xyz",
 		//"host": "162.244.77.183",
-		"port": "25",
+		"port": "465",
 	}
 
 	port, _ := strconv.Atoi(mailConn["port"]) //转换端口类型为int
 
 	m := gomail.NewMessage()
+	m.SetAddressHeader("From", "songyl@wangzihan.xyz", "账号1")
+	m.SetAddressHeader("To", mailTo, "账号2")
+	m.SetHeader("Subject", "gomail-"+subject)
+	m.SetBody("text/html", "<h1>"+body+"</h1>")
 
-	m.SetHeader("From", m.FormatAddress(mailConn["user"], "XX官方")) //这种方式可以添加别名，即“XX官方”
-	//说明：如果是用网易邮箱账号发送，以下方法别名可以是中文，如果是qq企业邮箱，以下方法用中文别名，会报错，需要用上面此方法转码
-	//m.SetHeader("From", "FB Sample"+"<"+mailConn["user"]+">") //这种方式可以添加别名，即“FB Sample”，
-	// 也可以直接用m.SetHeader("From",mailConn["user"]) 读者可以自行实验下效果
-	//m.SetHeader("From", mailConn["user"])
-	m.SetHeader("To", mailTo) //发送给多个用户
-	m.SetHeader("Subject", subject) //设置邮件主题
-	m.SetBody("text/html", body) //设置邮件正文
-
-	log.Println("11111")
-	d := gomail.NewDialer(mailConn["host"], port, mailConn["user"], mailConn["pass"])
-	log.Println("22222")
+	d := gomail.NewDialer("mail.wangzihan.xyz", port, "songyl", "4@2xade53")
+	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	err := d.DialAndSend(m)
-	log.Println("3333")
+	if err != nil {
+		fmt.Printf("***%s\n", err.Error())
+	}
+	fmt.Printf(mailTo+"-发送邮件成功\n")
+	//m := gomail.NewMessage()
+	//
+	//m.SetHeader("From", m.FormatAddress(mailConn["user"], "XX官方")) //这种方式可以添加别名，即“XX官方”
+	////说明：如果是用网易邮箱账号发送，以下方法别名可以是中文，如果是qq企业邮箱，以下方法用中文别名，会报错，需要用上面此方法转码
+	////m.SetHeader("From", "FB Sample"+"<"+mailConn["user"]+">") //这种方式可以添加别名，即“FB Sample”，
+	//// 也可以直接用m.SetHeader("From",mailConn["user"]) 读者可以自行实验下效果
+	////m.SetHeader("From", mailConn["user"])
+	//m.SetHeader("To", mailTo) //发送给多个用户
+	//m.SetHeader("Subject", subject) //设置邮件主题
+	//m.SetBody("text/html", body) //设置邮件正文
+	//
+	//log.Println("11111")
+	//d := gomail.NewDialer(mailConn["host"], port, mailConn["user"], mailConn["pass"])
+	//log.Println("22222")
+	//err := d.DialAndSend(m)
+	//log.Println("3333")
 	return err
 
 }

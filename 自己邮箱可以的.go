@@ -29,7 +29,7 @@ var TxtContNum = 0
 
 func main() {
 	//初始化文本资源
-	//InitTxtCont()
+	InitTxtCont()
 	findUnReadMail()
 
 	//err := SendMail("songylwq@126.com",
@@ -46,7 +46,7 @@ func main() {
 func findUnReadMail() {
 	log.Println("开始查询新邮件")
 	//c, err := client.DialTLS("imap.126.com:993", nil)
-	c, err := client.DialTLS("imap.wangzihan.xyz:110", nil)
+	c, err := client.Dial("mail.wangzihan.xyz:143")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func findUnReadMail() {
 	//if err := c.Login("songylwq@126.com", "371246song"); err != nil {
 	//	log.Fatal(err)
 	//}
-	if err := c.Login("admin@wangzihan.xyz", "ade534@2x"); err != nil {
+	if err := c.Login("songyl", "4@2xade53"); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("登录邮箱成功")
@@ -93,26 +93,32 @@ func findUnReadMail() {
 				log.Println("===>> ", msg.Envelope.From[0])
 				//参考报文 {"PersonalName":"\" 芝麻开花 \"","AtDomainList":"","MailboxName":"350956892","HostName":"qq.com"}
 				repEmailAddr := msg.Envelope.From[0].MailboxName + "@" + msg.Envelope.From[0].HostName
-				err = SendMail(repEmailAddr,
-					GetRandromTxt(15),
-					"你好"+msg.Envelope.From[0].PersonalName+",邮件已经收到！！\n"+GetRandromTxt(30) )
+				reqEmailTitl := GetRandromTxt(15)
+				reqEmailCont := "你好"+msg.Envelope.From[0].PersonalName+",邮件已经收到！！\n"+GetRandromTxt(30)
+
+				log.Println("repEmailAddr ==>> ", repEmailAddr)
+				log.Println("reqEmailTitl ==>> ", reqEmailTitl)
+				log.Println("reqEmailCont ==>> ", reqEmailCont)
+
+				err = SendMail(repEmailAddr, reqEmailTitl, reqEmailCont )
 				if nil != err {
+					fmt.Printf("%v",err)
 					log.Fatal("邮件回复失败")
 				}
 
 				log.Printf("邮件回复完成[%v]",repEmailAddr)
 			}
 
-			//将未读的邮件标记上已读
-			seqset = new(imap.SeqSet)
-			seqset.AddNum(uids...)
-			// First mark the message as deleted
-			item := imap.FormatFlagsOp(imap.AddFlags, true)
-			flags := []interface{}{imap.SeenFlag}
-			if err := c.Store(seqset, item, flags, nil); err != nil {
-				log.Fatal(err)
-			}
-			log.Println("都标记成已读了")
+			////将未读的邮件标记上已读
+			//seqset = new(imap.SeqSet)
+			//seqset.AddNum(uids...)
+			//// First mark the message as deleted
+			//item := imap.FormatFlagsOp(imap.AddFlags, true)
+			//flags := []interface{}{imap.SeenFlag}
+			//if err := c.Store(seqset, item, flags, nil); err != nil {
+			//	log.Fatal(err)
+			//}
+			//log.Println("都标记成已读了")
 		}
 
 		log.Println("暂时没有未读邮件")
@@ -132,9 +138,9 @@ func SendMail(mailTo string, subject string, body string) error {
 	//	"port": "465",
 	//}
 	mailConn := map[string]string{
-		"user": "admin@wangzihan.xyz",
-		"pass": "ade534@2x",
-		"host": "smtp.wangzihan.xyz",
+		"user": "songyl@wangzihan.xyz",
+		"pass": "4@2xade53",
+		"host": "mail.wangzihan.xyz",
 		//"host": "162.244.77.183",
 		"port": "25",
 	}

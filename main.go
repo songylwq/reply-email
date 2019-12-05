@@ -13,6 +13,7 @@ import (
 	"io"
 	"math/rand"
 	"crypto/tls"
+	"github.com/Unknwon/goconfig"
 )
 
 //邮件对象
@@ -27,44 +28,55 @@ type Email struct {
 var TxtCont = make([]string, 1)
 //文本素材长度
 var TxtContNum = 0
+//配置文件
+var Cfg *goconfig.ConfigFile
 
 func main() {
+	//初始化配置文件
+	initConfig()
 	//初始化文本资源
 	InitTxtCont()
 	findUnReadMail()
-
-	//err := SendMail("songylwq@126.com",
-	//	"你好的否的",
-	//	"你好的否的")
-	//if nil != err {
-	//	log.Fatal("邮件回复失败：", err)
-	//}
-	//
-	//log.Printf("邮件发送完成[%v]")
 }
+
+//初始化配置文件
+func initConfig() {
+	var err error
+	Cfg, err = goconfig.LoadConfigFile("config/main.ini")
+	if err != nil{
+		log.Fatal("读取配置文件错误：", err)
+	}
+	inHos,_ := Cfg.GetValue("InboxMail", "host")
+	log.Println("读取配置文件林成功["+inHos+"]")
+}
+
 
 //查询未读
 func findUnReadMail() {
 	log.Println("开始查询新邮件")
-	c, err := client.DialTLS("mail.wangzihan.xyz:993", nil)
-	//c, err := client.Dial("mail.wangzihan.xyz:143")
+	inHos,_ := Cfg.GetValue("InboxMail", "host")
+	inPost,_ := Cfg.GetValue("InboxMail", "port")
+	c, err := client.DialTLS(inHos+":"+inPost, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Println("获取链接成功")
 	defer c.Logout()
-	// Login
-	//if err := c.Login("songylwq@126.com", "371246song"); err != nil {
-	//	log.Fatal(err)
-	//}
-	if err := c.Login("songyl", "4@2xade53"); err != nil {
+
+	inName,_ := Cfg.GetValue("InboxMail", "name")
+	inPwd,_ := Cfg.GetValue("InboxMail", "pwd")
+
+	if err := c.Login(inName, inPwd); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("登录邮箱成功")
 
-	//每5秒查询一下收件箱
-	ticker := time.NewTicker(time.Second * 10)
-	for _ = range ticker.C {
+	//每5秒查询一下收件箱，读取配置
+	readInBoxTimeStr,_ := Cfg.GetValue("Sys", "readInBoxTime")
+	readInBoxTime, err := strconv.ParseInt(readInBoxTimeStr, 10, 64)
+	for {
+		log.Println(readInBoxTimeStr+"秒后读取收件箱...")
+		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
 		log.Println("读取收件箱")
 
 		c.Select("INBOX", false)
@@ -141,60 +153,41 @@ func SendMail(mailFrom string, mailTo string, subject string, body string) error
 	//	"host": "smtp.126.com",
 	//	"port": "465",
 	//}
-	mailConn := map[string]string{
-		"user": "songyl",
-		"pass": "4@2xade53",
-		"host": "mail.wangzihan.xyz",
-		//"host": "162.244.77.183",
-		"port": "465",
-	}
 
-	port, _ := strconv.Atoi(mailConn["port"]) //转换端口类型为int
-
-	m := gomail.NewMessage()
-	m.SetAddressHeader("From", mailFrom, mailFrom)
-	m.SetAddressHeader("To", mailTo, mailTo)
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", "<h1>"+body+"</h1>"+"<span>"+body+body+"</span>")
-
-	d := gomail.NewDialer("mail.wangzihan.xyz", port, "songyl", "4@2xade53")
-	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-
-	err := d.DialAndSend(m)
-	//if err != nil {
-	//	fmt.Printf("***%s\n", err.Error())
+	//mailConn := map[string]string{
+	//	"user": "songyl",
+	//	"pass": "4@2xade53",
+	//	"host": "mail.wangzihan.xyz",
+	//	//"host": "162.244.77.183",
+	//	"port": "465",
 	//}
-	//fmt.Printf(mailTo+"-发送邮件成功\n")
+
+	sendName,_ := Cfg.GetValue("SendMail", "name")
+	sendPwd,_ := Cfg.GetValue("SendMail", "pwd")
+	sendHost,_ := Cfg.GetValue("SendMail", "host")
+	sendPort,_ := Cfg.GetValue("SendMail", "port")
+
+	port, _ := strconv.Atoi(sendPort) //转换端口类型为int
+	d := gomail.NewDialer(sendHost, port, sendName, sendPwd)
+	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 	sendCloser,err := d.Dial()
 	if err != nil {
 		fmt.Printf("创建sendCloser异常：%s\n", err.Error())
 	}
-	log.Printf(mailTo+"-创建sendCloser成功\n")
+	log.Println(mailTo+"-创建sendCloser成功")
 
 	for i:=0; i<1; i++ {
-		sendCloser.Send("songyl@wangzihan.xyz", []string{mailTo}, m)
-		log.Printf(mailTo+"-发送邮件[%v]成功\n", i)
+		m := gomail.NewMessage()
+		m.SetAddressHeader("From", mailFrom, mailFrom)
+		m.SetAddressHeader("To", mailTo, mailTo)
+		m.SetHeader("Subject", subject)
+		m.SetBody("text/html", "<h1>"+body+"</h1>"+"<span>"+body+body+"</span>")
+		sendCloser.Send(mailFrom, []string{mailTo}, m)
+		log.Println("发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
 	}
 
-	//m := gomail.NewMessage()
-	//
-	//m.SetHeader("From", m.FormatAddress(mailConn["user"], "XX官方")) //这种方式可以添加别名，即“XX官方”
-	////说明：如果是用网易邮箱账号发送，以下方法别名可以是中文，如果是qq企业邮箱，以下方法用中文别名，会报错，需要用上面此方法转码
-	////m.SetHeader("From", "FB Sample"+"<"+mailConn["user"]+">") //这种方式可以添加别名，即“FB Sample”，
-	//// 也可以直接用m.SetHeader("From",mailConn["user"]) 读者可以自行实验下效果
-	////m.SetHeader("From", mailConn["user"])
-	//m.SetHeader("To", mailTo) //发送给多个用户
-	//m.SetHeader("Subject", subject) //设置邮件主题
-	//m.SetBody("text/html", body) //设置邮件正文
-	//
-	//log.Println("11111")
-	//d := gomail.NewDialer(mailConn["host"], port, mailConn["user"], mailConn["pass"])
-	//log.Println("22222")
-	//err := d.DialAndSend(m)
-	//log.Println("3333")
 	return err
-
 }
 
 //初始化文本内容，读取到内存里面

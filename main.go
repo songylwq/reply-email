@@ -63,7 +63,7 @@ func findUnReadMail() {
 	log.Println("登录邮箱成功")
 
 	//每5秒查询一下收件箱
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(time.Second * 10)
 	for _ = range ticker.C {
 		log.Println("读取收件箱")
 
@@ -77,8 +77,6 @@ func findUnReadMail() {
 			log.Println(err)
 		}
 
-		log.Println(uids)
-
 		if 0 < len(uids) {
 			seqset := new(imap.SeqSet)
 			seqset.AddNum(uids...)
@@ -87,27 +85,32 @@ func findUnReadMail() {
 			messages := make(chan *imap.Message, len(uids))
 			err = c.Fetch(seqset, items, messages)
 
-			log.Println("c.Fetched")
+			log.Println("查询收件箱完成，收件箱邮件数量：", len(uids))
 
 			for msg := range messages {
-				log.Println("* ", msg.Envelope.Subject, "--",  msg.Flags)
-				log.Println("===>> ", msg.Envelope.From[0])
-				//参考报文 {"PersonalName":"\" 芝麻开花 \"","AtDomainList":"","MailboxName":"350956892","HostName":"qq.com"}
-				repEmailAddr := msg.Envelope.From[0].MailboxName + "@" + msg.Envelope.From[0].HostName
-				reqEmailTitl := GetRandromTxt(15)
-				reqEmailCont := "你好"+msg.Envelope.From[0].PersonalName+",邮件已经收到！！\n"+GetRandromTxt(30)
+				go func(msg *imap.Message){
+					//参考报文 {"PersonalName":"\" 芝麻开花 \"","AtDomainList":"","MailboxName":"350956892","HostName":"qq.com"}
+					//我的收件账户地址
+					repEmailMyAddr := msg.Envelope.To[0].MailboxName + "@" + msg.Envelope.To[0].HostName
+					//马甲号地址
+					repEmailMajiaAddr := msg.Envelope.From[0].MailboxName + "@" + msg.Envelope.From[0].HostName
+					reqEmailTitl := GetRandromTxt(15)
+					reqEmailCont := GetRandromTxt(50)
 
-				log.Println("repEmailAddr ==>> ", repEmailAddr)
-				log.Println("reqEmailTitl ==>> ", reqEmailTitl)
-				log.Println("reqEmailCont ==>> ", reqEmailCont)
+					log.Println("开始回复邮件：", repEmailMajiaAddr)
 
-				err = SendMail(repEmailAddr, reqEmailTitl, reqEmailCont )
-				if nil != err {
-					fmt.Printf("%v",err)
-					log.Fatal("邮件回复失败")
-				}
+					//log.Println("repEmailAddr ==>> ", repEmailAddr)
+					//log.Println("reqEmailTitl ==>> ", reqEmailTitl)
+					//log.Println("reqEmailCont ==>> ", reqEmailCont)
 
-				log.Printf("邮件回复完成[%v]",repEmailAddr)
+					err = SendMail(repEmailMyAddr, repEmailMajiaAddr, reqEmailTitl, reqEmailCont )
+					if nil != err {
+						fmt.Printf("%v",err)
+						log.Fatal("邮件回复失败")
+					}
+
+					log.Println("邮件回复完成：", repEmailMajiaAddr)
+				}(msg)
 			}
 
 			//将未读的邮件标记上已读
@@ -129,7 +132,7 @@ func findUnReadMail() {
 
 
 //发送邮件
-func SendMail(mailTo string, subject string, body string) error {
+func SendMail(mailFrom string, mailTo string, subject string, body string) error {
 	//定义邮箱服务器连接信息，如果是网易邮箱 pass填密码，qq邮箱填授权码
 	//mailConn := map[string]string{
 	//	"user": "songylwq@126.com",
@@ -149,10 +152,10 @@ func SendMail(mailTo string, subject string, body string) error {
 	port, _ := strconv.Atoi(mailConn["port"]) //转换端口类型为int
 
 	m := gomail.NewMessage()
-	m.SetAddressHeader("From", "songyl@wangzihan.xyz", "账号1")
-	m.SetAddressHeader("To", mailTo, "账号2")
-	m.SetHeader("Subject", "gomail-"+subject)
-	m.SetBody("text/html", "<h1>"+body+"</h1>")
+	m.SetAddressHeader("From", mailFrom, mailFrom)
+	m.SetAddressHeader("To", mailTo, mailTo)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", "<h1>"+body+"</h1>"+"<span>"+body+body+"</span>")
 
 	d := gomail.NewDialer("mail.wangzihan.xyz", port, "songyl", "4@2xade53")
 	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
@@ -165,14 +168,13 @@ func SendMail(mailTo string, subject string, body string) error {
 
 	sendCloser,err := d.Dial()
 	if err != nil {
-		fmt.Printf("***%s\n", err.Error())
+		fmt.Printf("创建sendCloser异常：%s\n", err.Error())
 	}
-	fmt.Printf(mailTo+"-创建sendCloser成功\n")
+	log.Printf(mailTo+"-创建sendCloser成功\n")
 
 	for i:=0; i<1; i++ {
 		sendCloser.Send("songyl@wangzihan.xyz", []string{mailTo}, m)
-		fmt.Printf(mailTo+"-发送邮件[%v]成功\n", i)
-		time.Sleep(time.Second * 2 )
+		log.Printf(mailTo+"-发送邮件[%v]成功\n", i)
 	}
 
 	//m := gomail.NewMessage()
@@ -240,7 +242,7 @@ func GetRandromTxt(getCount int) string {
 	randZh := rand.New(rand.NewSource(time.Now().UnixNano()))
 	randId := randZh.Intn(TxtContNum)
 	reStr := TxtCont[randId]
-	for getCount > len(reStr) {
+	for getCount > len([]rune(reStr)) {
 		randZh = rand.New(rand.NewSource(time.Now().UnixNano()))
 		randId = randZh.Intn(TxtContNum)
 		reStr += TxtCont[randId]

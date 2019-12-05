@@ -156,11 +156,25 @@ func SendMail(mailTo string, subject string, body string) error {
 
 	d := gomail.NewDialer("mail.wangzihan.xyz", port, "songyl", "4@2xade53")
 	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+
 	err := d.DialAndSend(m)
+	//if err != nil {
+	//	fmt.Printf("***%s\n", err.Error())
+	//}
+	//fmt.Printf(mailTo+"-发送邮件成功\n")
+
+	sendCloser,err := d.Dial()
 	if err != nil {
 		fmt.Printf("***%s\n", err.Error())
 	}
-	fmt.Printf(mailTo+"-发送邮件成功\n")
+	fmt.Printf(mailTo+"-创建sendCloser成功\n")
+
+	for i:=0; i<1; i++ {
+		sendCloser.Send("songyl@wangzihan.xyz", []string{mailTo}, m)
+		fmt.Printf(mailTo+"-发送邮件[%v]成功\n", i)
+		time.Sleep(time.Second * 2 )
+	}
+
 	//m := gomail.NewMessage()
 	//
 	//m.SetHeader("From", m.FormatAddress(mailConn["user"], "XX官方")) //这种方式可以添加别名，即“XX官方”

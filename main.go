@@ -37,9 +37,11 @@ func main() {
 	initConfig()
 	//初始化文本资源
 	InitTxtCont()
+	roundTime := 1
 	for {
-		findUnReadMail()
-		fmt.Println("系统有问题，30秒后重新启动")
+		roundTime ++
+		findUnReadMail(roundTime)
+		fmt.Println("本次执行完成，30秒后重新启动")
 		time.Sleep(time.Second * 30)
 	}
 }
@@ -58,7 +60,7 @@ func initConfig() {
 
 
 //查询未读
-func findUnReadMail() {
+func findUnReadMail(roundTime int) {
 	//系统整体异常处理
 	defer func() {
 		if err := recover(); err != nil {
@@ -94,13 +96,15 @@ func findUnReadMail() {
 	reloginNumStr,_ := Cfg.GetValue("Sys", "reloginNum")
 	reloginNum, err := strconv.Atoi(reloginNumStr)
 
+	fmt.Println("==================== >>>>>>>>>>>>>>>>>>>>>>> 开始第["+strconv.Itoa(roundTime)+"]轮["+reloginNumStr+"]次查询")
+
 	for i:=0; i<reloginNum; i++ {
 		now  := time.Now()
 		//now.Format 方法格式化
 		timeStr := fmt.Sprint(now.Format("2006-01-02 15:04:05"))
 		fmt.Println(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
 		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
-		fmt.Println("读取收件箱")
+		fmt.Println("开始第["+strconv.Itoa(i)+"次]读取收件箱")
 
 		c.Select("INBOX", false)
 
@@ -175,7 +179,7 @@ func findUnReadMail() {
 
 		fmt.Println("暂时没有未读邮件")
 	}
-
+	fmt.Println("==================== >>>>>>>>>>>>>>>>>>>>>>> 第["+strconv.Itoa(roundTime)+"]轮["+reloginNumStr+"]次查询结束")
 }
 
 

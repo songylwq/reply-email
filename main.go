@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"github.com/emersion/go-imap/client"
 	"time"
 	"github.com/go-gomail/gomail"
@@ -15,6 +14,7 @@ import (
 	"crypto/tls"
 	"github.com/Unknwon/goconfig"
 	"strings"
+	"github.com/wonderivan/logger"
 )
 
 //邮件对象
@@ -33,29 +33,30 @@ var TxtContNum = 0
 var Cfg *goconfig.ConfigFile
 
 func main() {
+	//通过配置文件配置,初始化日志配置
+	logger.SetLogger("config/log.json")
 	//初始化配置文件
 	initConfig()
 	//初始化文本资源
 	InitTxtCont()
 	roundTime := 1
 	for {
-		roundTime ++
 		findUnReadMail(roundTime)
-		fmt.Println("本次执行完成，30秒后重新启动")
+		roundTime ++
+		logger.Debug("本次执行完成，30秒后重新启动")
 		time.Sleep(time.Second * 30)
 	}
 }
-
 
 //初始化配置文件
 func initConfig() {
 	var err error
 	Cfg, err = goconfig.LoadConfigFile("config/main.ini")
 	if err != nil{
-		log.Fatal("读取配置文件错误：", err)
+		logger.Error("读取配置文件错误：", err)
 	}
 	inHos,_ := Cfg.GetValue("InboxMail", "host")
-	fmt.Println("读取配置文件林成功["+inHos+"]")
+	logger.Debug("读取配置文件林成功["+inHos+"]")
 }
 
 
@@ -64,29 +65,31 @@ func findUnReadMail(roundTime int) {
 	//系统整体异常处理
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("==============================================")
-			fmt.Println("回复邮箱逻辑异常：", err)
-			fmt.Println("==============================================")
+			logger.Debug("==============================================")
+			logger.Debug("回复邮箱逻辑异常：", err)
+			logger.Debug("==============================================")
 		}
 	}()
+	
+	logger.Debug("==================== >>>>>>>>>>>>>>>>>>>>>>> 开始第["+strconv.Itoa(roundTime)+"]轮登录邮箱操作")
 
-	fmt.Println("开始查询新邮件")
+	logger.Debug("开始查询新邮件")
 	inHos,_ := Cfg.GetValue("InboxMail", "host")
 	inPost,_ := Cfg.GetValue("InboxMail", "port")
 	c, err := client.DialTLS(inHos+":"+inPost, nil)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error(err)
 	}
-	fmt.Println("获取链接成功")
+	logger.Debug("获取链接成功")
 	defer c.Logout()
 
 	inName,_ := Cfg.GetValue("InboxMail", "name")
 	inPwd,_ := Cfg.GetValue("InboxMail", "pwd")
 
 	if err := c.Login(inName, inPwd); err != nil {
-		log.Fatal(err)
+		logger.Error(err)
 	}
-	fmt.Println("登录邮箱成功")
+	logger.Debug("登录邮箱成功")
 
 	//每5秒查询一下收件箱，读取配置
 	readInBoxTimeStr,_ := Cfg.GetValue("Sys", "readInBoxTime")
@@ -96,28 +99,27 @@ func findUnReadMail(roundTime int) {
 	reloginNumStr,_ := Cfg.GetValue("Sys", "reloginNum")
 	reloginNum, err := strconv.Atoi(reloginNumStr)
 
-	fmt.Println("==================== >>>>>>>>>>>>>>>>>>>>>>> 开始第["+strconv.Itoa(roundTime)+"]轮["+reloginNumStr+"]次查询")
 
-	for i:=0; i<reloginNum; i++ {
+	for i:=1; i<reloginNum; i++ {
 		now  := time.Now()
 		//now.Format 方法格式化
 		timeStr := fmt.Sprint(now.Format("2006-01-02 15:04:05"))
-		fmt.Println(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
+		logger.Debug(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
 		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
-		fmt.Println("开始第["+strconv.Itoa(i)+"次]读取收件箱")
+		logger.Debug("++++++++++++++++++++++++++++++++++开始第["+strconv.Itoa(roundTime)+"]轮["+strconv.Itoa(i)+"]次读取收件箱")
 
 		c.Select("INBOX", false)
 
-		fmt.Println("读取收件箱 Select 完成")
+		logger.Debug("读取收件箱 Select 完成")
 
 		//筛选所有未读的邮件
 		criteria := imap.NewSearchCriteria()
 		criteria.WithoutFlags = []string{"\\Seen"}
 		uids, err := c.Search(criteria)
 		if err != nil {
-			fmt.Println(err)
+			logger.Debug(err)
 		}
-		fmt.Println("读取收件箱 Search 完成")
+		logger.Debug("读取收件箱 Search 完成")
 
 		if 0 < len(uids) {
 			seqset := new(imap.SeqSet)
@@ -127,17 +129,17 @@ func findUnReadMail(roundTime int) {
 			messages := make(chan *imap.Message, len(uids))
 			err = c.Fetch(seqset, items, messages)
 
-			fmt.Println("查询收件箱完成，收件箱邮件数量：", len(uids))
+			logger.Debug("查询收件箱完成，收件箱邮件数量：", len(uids))
 
 			for msg := range messages {
 				//马甲号地址限制，只是给163、126的邮件回信
 				if !strings.EqualFold("163.com", msg.Envelope.From[0].HostName) &&
 					!strings.EqualFold("126.com", msg.Envelope.From[0].HostName) {
-					fmt.Println("系统设置不回复的地址：", msg.Envelope.From[0].HostName)
+					logger.Debug("系统设置不回复的地址：", msg.Envelope.From[0].HostName)
 					continue
 				}
 
-				fmt.Println("1秒后开始回复下一封邮件...")
+				logger.Debug("1秒后开始回复下一封邮件...")
 				time.Sleep(time.Second)
 
 				go func(msg *imap.Message){
@@ -149,19 +151,19 @@ func findUnReadMail(roundTime int) {
 					reqEmailTitl := GetRandromTxt(20)
 					reqEmailCont := GetRandromTxt(50)
 
-					fmt.Println("开始回复邮件：", repEmailMajiaAddr)
+					logger.Debug("开始回复邮件：", repEmailMajiaAddr)
 
-					//fmt.Println("repEmailAddr ==>> ", repEmailAddr)
-					//fmt.Println("reqEmailTitl ==>> ", reqEmailTitl)
-					//fmt.Println("reqEmailCont ==>> ", reqEmailCont)
+					//logger.Debug("repEmailAddr ==>> ", repEmailAddr)
+					//logger.Debug("reqEmailTitl ==>> ", reqEmailTitl)
+					//logger.Debug("reqEmailCont ==>> ", reqEmailCont)
 
 					err = SendMail(repEmailMyAddr, repEmailMajiaAddr, reqEmailTitl, reqEmailCont )
 					if nil != err {
-						fmt.Printf("%v",err)
-						log.Fatal("邮件回复失败")
+						logger.Debug(err)
+						logger.Error("邮件回复失败")
 					}
 
-					fmt.Println("邮件回复完成：", repEmailMajiaAddr)
+					logger.Debug("邮件回复完成：", repEmailMajiaAddr)
 				}(msg)
 			}
 
@@ -172,14 +174,14 @@ func findUnReadMail(roundTime int) {
 			item := imap.FormatFlagsOp(imap.AddFlags, true)
 			flags := []interface{}{imap.SeenFlag}
 			if err := c.Store(seqset, item, flags, nil); err != nil {
-				log.Fatal(err)
+				logger.Error(err)
 			}
-			fmt.Println("都标记成已读了")
+			logger.Debug("都标记成已读了")
 		}
 
-		fmt.Println("暂时没有未读邮件")
+		logger.Debug("暂时没有未读邮件")
 	}
-	fmt.Println("==================== >>>>>>>>>>>>>>>>>>>>>>> 第["+strconv.Itoa(roundTime)+"]轮["+reloginNumStr+"]次查询结束")
+	logger.Debug("==================== >>>>>>>>>>>>>>>>>>>>>>> 第["+strconv.Itoa(roundTime)+"]轮登录邮箱操作结束")
 }
 
 
@@ -216,9 +218,9 @@ func SendMail(mailFrom string, mailTo string, subject string, body string) error
 	defer sendCloser.Close()
 
 	if err != nil {
-		fmt.Printf("创建sendCloser异常：%s\n", err.Error())
+		logger.Error("创建sendCloser异常：%s\n", err.Error())
 	}
-	fmt.Println(mailTo+"-创建sendCloser成功")
+	logger.Debug(mailTo+"-创建sendCloser成功")
 
 	for i:=0; i<1; i++ {
 		m := gomail.NewMessage()
@@ -227,7 +229,7 @@ func SendMail(mailFrom string, mailTo string, subject string, body string) error
 		m.SetHeader("Subject", subject)
 		m.SetBody("text/html", "<h1>"+subject+"</h1>"+"<span>"+body+"</span>")
 		sendCloser.Send(mailFrom, []string{mailTo}, m)
-		fmt.Println("发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
+		logger.Debug("发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
 	}
 
 
@@ -238,16 +240,16 @@ func SendMail(mailFrom string, mailTo string, subject string, body string) error
 //初始化文本内容，读取到内存里面
 func InitTxtCont(){
 	filePathUrl := fmt.Sprintf("data%ctxtcontent", os.PathSeparator)
-	fmt.Printf("开始读取[%s]", filePathUrl)
+	logger.Debug("开始读取[%s]", filePathUrl)
 	ReadTxtCont(filePathUrl, 10000, TxtHandle)
 	TxtContNum = len(TxtCont)
-	fmt.Printf("读取文本素材完成,共读取[%v]条", len(TxtCont))
+	logger.Debug("读取文本素材完成,共读取[%v]条", len(TxtCont))
 }
 
 //将文本内容读取到内存里
 func TxtHandle(line []byte) {
 	//os.Stdout.Write(line)
-	//fmt.Println(string(line))
+	//logger.Debug(string(line))
 	//将文本素材写入内存
 	TxtCont = append(TxtCont, string(line))
 }
@@ -293,23 +295,23 @@ func GetRandromTxt(getCount int) string {
 
 
 //func main() {
-//	fmt.Println("Connecting to server...")
+//	logger.Debug("Connecting to server...")
 //
 //	// Connect to server
 //	c, err := client.DialTLS("imap.126.com:993", nil)
 //	if err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Connected")
+//	logger.Debug("Connected")
 //
 //	// Don't forget to logout
 //	defer c.Logout()
 //
 //	// Login
 //	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Logged in")
+//	logger.Debug("Logged in")
 //
 //	// List mailboxes
 //	mailboxes := make(chan *imap.MailboxInfo, 10)
@@ -318,26 +320,26 @@ func GetRandromTxt(getCount int) string {
 //		done <- c.List("", "*", mailboxes)
 //	}()
 //
-//	fmt.Println("Mailboxes:")
+//	logger.Debug("Mailboxes:")
 //	for m := range mailboxes {
-//		fmt.Println("* " + m.Name)
+//		logger.Debug("* " + m.Name)
 //	}
 //
-//	fmt.Println("******")
+//	logger.Debug("******")
 //
 //	if err := <-done; err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
 //
-//	fmt.Println("Select INBOX")
+//	logger.Debug("Select INBOX")
 //
 //	// Select INBOX
 //	mbox, err := c.Select("INBOX", false)
 //
 //	if err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Flags for INBOX:", mbox.Flags)
+//	logger.Debug("Flags for INBOX:", mbox.Flags)
 //
 //	// Get the last 4 messages
 //	from := uint32(1)
@@ -349,7 +351,7 @@ func GetRandromTxt(getCount int) string {
 //	seqset := new(imap.SeqSet)
 //	seqset.AddRange(from, to)
 //
-//	fmt.Println("mbox.Messages:", mbox.Messages)
+//	logger.Debug("mbox.Messages:", mbox.Messages)
 //
 //	messages := make(chan *imap.Message, 10)
 //	done = make(chan error, 1)
@@ -357,40 +359,40 @@ func GetRandromTxt(getCount int) string {
 //		done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
 //	}()
 //
-//	fmt.Println("Last 4 messages:")
+//	logger.Debug("Last 4 messages:")
 //	for msg := range messages {
-//		fmt.Println("* " + msg.Envelope.Subject)
-//		//fmt.Println("from: ", msg.Envelope.From[0])
-//		//fmt.Println("to: ", msg.Envelope.To[0])
-//		//fmt.Println("ReplyTo: ", msg.Envelope.ReplyTo[0])
+//		logger.Debug("* " + msg.Envelope.Subject)
+//		//logger.Debug("from: ", msg.Envelope.From[0])
+//		//logger.Debug("to: ", msg.Envelope.To[0])
+//		//logger.Debug("ReplyTo: ", msg.Envelope.ReplyTo[0])
 //	}
 //
 //	if err := <-done; err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
 //
-//	fmt.Println("Done!")
+//	logger.Debug("Done!")
 //}
 
 
 //func main() {
-//	fmt.Println("Connecting to server...")
+//	logger.Debug("Connecting to server...")
 //
 //	// Connect to server
 //	c, err := client.DialTLS("imap.126.com:993", nil)
 //	if err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Connected")
+//	logger.Debug("Connected")
 //
 //	// Don't forget to logout
 //	defer c.Logout()
 //
 //	// Login
 //	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Logged in")
+//	logger.Debug("Logged in")
 //
 //	//// List mailboxes
 //	//mailboxes := make(chan *imap.MailboxInfo, 10)
@@ -400,33 +402,33 @@ func GetRandromTxt(getCount int) string {
 //	//	//done <- c.List("", "INBOX", mailboxes)
 //	//}()
 //	//
-//	//fmt.Println("Mailboxes:")
+//	//logger.Debug("Mailboxes:")
 //	//for m := range mailboxes {
-//	//	fmt.Println("* " + m.Name)
+//	//	logger.Debug("* " + m.Name)
 //	//}
 //	//
-//	//fmt.Println("******")
+//	//logger.Debug("******")
 //	//
 //	//if err := <-done; err != nil {
-//	//	log.Fatal(err)
+//	//	logger.Error(err)
 //	//}
 //	//
-//	//fmt.Println("Select INBOX")
+//	//logger.Debug("Select INBOX")
 //	//
 //	//// Select INBOX
 //	//mbox, err := c.Select("INBOX", false)
 //	//
 //	//if err != nil {
-//	//	log.Fatal(err)
+//	//	logger.Error(err)
 //	//}
 //	//
-//	//fmt.Println("Flags for INBOX:", mbox.Flags)
+//	//logger.Debug("Flags for INBOX:", mbox.Flags)
 //	//
 //	////mbox.Flags = []string{"\\Deleted"}
 //	////mbox.PermanentFlags = []string{"\\Deleted"}
 //	////
-//	////fmt.Println("Flags 修改后:", mbox.Flags)
-//	////fmt.Println("PermanentFlags 修改后:", mbox.PermanentFlags)
+//	////logger.Debug("Flags 修改后:", mbox.Flags)
+//	////logger.Debug("PermanentFlags 修改后:", mbox.PermanentFlags)
 //	//
 //	//// Get the last 4 messages
 //	//from := uint32(1)
@@ -438,8 +440,8 @@ func GetRandromTxt(getCount int) string {
 //	//seqset := new(imap.SeqSet)
 //	//seqset.AddRange(from, to)
 //	//
-//	//fmt.Println("mbox.Messages : ", mbox.Messages)
-//	//fmt.Println("mbox.PermanentFlags : ", mbox.PermanentFlags)
+//	//logger.Debug("mbox.Messages : ", mbox.Messages)
+//	//logger.Debug("mbox.PermanentFlags : ", mbox.PermanentFlags)
 //
 //
 //
@@ -451,7 +453,7 @@ func GetRandromTxt(getCount int) string {
 //		mbox, err := c.Select("INBOX", false)
 //
 //		if err != nil {
-//			log.Fatal(err)
+//			logger.Error(err)
 //		}
 //
 //		from := uint32(1)
@@ -467,20 +469,20 @@ func GetRandromTxt(getCount int) string {
 //		err = c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope, imap.FetchFlags}, messages)
 //
 //		if err != nil {
-//			log.Fatal(err)
+//			logger.Error(err)
 //		}
 //
 //		time.Sleep(3 * time.Second)
 //
-//		fmt.Println()
-//		fmt.Println("Last 4 messages:")
+//		logger.Debug()
+//		logger.Debug("Last 4 messages:")
 //		for msg := range messages {
-//			fmt.Println("* " + msg.Envelope.Subject)
-//			fmt.Println("*,Flags : ", msg.Flags)
-//			//fmt.Println("from: ", msg.Envelope.From[0])
-//			//fmt.Println("to: ", msg.Envelope.To[0])
-//			//fmt.Println("ReplyTo: ", msg.Envelope.ReplyTo[0])
-//			//fmt.Println("MessageId: ", msg.Envelope.MessageId)
+//			logger.Debug("* " + msg.Envelope.Subject)
+//			logger.Debug("*,Flags : ", msg.Flags)
+//			//logger.Debug("from: ", msg.Envelope.From[0])
+//			//logger.Debug("to: ", msg.Envelope.To[0])
+//			//logger.Debug("ReplyTo: ", msg.Envelope.ReplyTo[0])
+//			//logger.Debug("MessageId: ", msg.Envelope.MessageId)
 //		}
 //
 //	}
@@ -488,40 +490,40 @@ func GetRandromTxt(getCount int) string {
 //	//回复邮件
 //
 //
-//	fmt.Println("Done!")
+//	logger.Debug("Done!")
 //}
 
 
 //
 ////删除邮件
 //func main() {
-//	fmt.Println("Connecting to server...")
+//	logger.Debug("Connecting to server...")
 //
 //	// Connect to server
 //	c, err := client.DialTLS("imap.126.com:993", nil)
 //	if err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Connected")
+//	logger.Debug("Connected")
 //
 //	// Don't forget to logout
 //	defer c.Logout()
 //
 //	// Login
 //	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Logged in")
+//	logger.Debug("Logged in")
 //
 //	// Select INBOX
 //	mbox, err := c.Select("INBOX", false)
 //	if err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
 //
 //	// We will delete the last message
 //	if mbox.Messages == 0 {
-//		log.Fatal("No message in mailbox")
+//		logger.Error("No message in mailbox")
 //	}
 //
 //	seqset := new(imap.SeqSet)
@@ -531,29 +533,29 @@ func GetRandromTxt(getCount int) string {
 //	item := imap.FormatFlagsOp(imap.AddFlags, true)
 //	flags := []interface{}{imap.SeenFlag}
 //	if err := c.Store(seqset, item, flags, nil); err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
 //
-//	fmt.Println("删除了")
+//	logger.Debug("删除了")
 //}
 
 
 ////查询未读邮件
 //func main() {
-//	fmt.Println("Connecting to server...")
+//	logger.Debug("Connecting to server...")
 //	// Connect to server
 //	c, err := client.DialTLS("imap.126.com:993", nil)
 //	if err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Connected")
+//	logger.Debug("Connected")
 //	// Don't forget to logout
 //	defer c.Logout()
 //	// Login
 //	if err := c.Login("songylwq@126.com", "371246song"); err != nil {
-//		log.Fatal(err)
+//		logger.Error(err)
 //	}
-//	fmt.Println("Logged in")
+//	logger.Debug("Logged in")
 //
 //	for {
 //		c.Select("test", false)
@@ -563,10 +565,10 @@ func GetRandromTxt(getCount int) string {
 //		criteria.WithoutFlags = []string{"\\Seen"}
 //		uids, err := c.Search(criteria)
 //		if err != nil {
-//			fmt.Println(err)
+//			logger.Debug(err)
 //		}
 //
-//		fmt.Println(uids)
+//		logger.Debug(uids)
 //
 //		if 0 < len(uids) {
 //			seqset := new(imap.SeqSet)
@@ -576,10 +578,10 @@ func GetRandromTxt(getCount int) string {
 //			messages := make(chan *imap.Message, len(uids))
 //			err = c.Fetch(seqset, items, messages)
 //
-//			fmt.Println("c.Fetched")
+//			logger.Debug("c.Fetched")
 //
 //			for msg := range messages {
-//				fmt.Println("* ", msg.Envelope.Subject, "--",  msg.Flags)
+//				logger.Debug("* ", msg.Envelope.Subject, "--",  msg.Flags)
 //			}
 //
 //			//将未读的邮件标记上已读
@@ -589,12 +591,12 @@ func GetRandromTxt(getCount int) string {
 //			item := imap.FormatFlagsOp(imap.AddFlags, true)
 //			flags := []interface{}{imap.SeenFlag}
 //			if err := c.Store(seqset, item, flags, nil); err != nil {
-//				log.Fatal(err)
+//				logger.Error(err)
 //			}
-//			fmt.Println("都标记成已读了")
+//			logger.Debug("都标记成已读了")
 //		}
 //
-//		fmt.Println("暂时没有未读邮件")
+//		logger.Debug("暂时没有未读邮件")
 //		time.Sleep(time.Second * 5)
 //	}
 //}

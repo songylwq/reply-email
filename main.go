@@ -46,6 +46,10 @@ func main() {
 		logger.Debug("本次执行完成，30秒后重新启动")
 		time.Sleep(time.Second * 30)
 	}
+
+
+	////清空所有的邮件，包括垃圾邮件等
+	//clearAllEmail()
 }
 
 //初始化配置文件
@@ -106,7 +110,8 @@ func findUnReadMail(roundTime int) {
 		timeStr := fmt.Sprint(now.Format("2006-01-02 15:04:05"))
 		logger.Debug(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
 		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
-		logger.Debug("++++++++++++++++++++++++++++++++++开始第["+strconv.Itoa(roundTime)+"]轮["+strconv.Itoa(i)+"]次读取收件箱")
+		logger.Debug("")
+		logger.Debug("+++++++ 开始第["+strconv.Itoa(roundTime)+"]轮["+strconv.Itoa(i)+"]次读取收件箱 +++++++ ")
 
 		c.Select("INBOX", false)
 
@@ -135,7 +140,10 @@ func findUnReadMail(roundTime int) {
 				//马甲号地址限制，只是给163、126的邮件回信
 				if !strings.EqualFold("163.com", msg.Envelope.From[0].HostName) &&
 					!strings.EqualFold("126.com", msg.Envelope.From[0].HostName) {
-					logger.Debug("系统设置不回复的地址：", msg.Envelope.From[0].HostName)
+					logger.Debug("系统设置不回复的地址：From: ",
+						"["+msg.Envelope.From[0].MailboxName + "@" +msg.Envelope.From[0].HostName+"]",
+						" TO: ",
+						"["+msg.Envelope.To[0].MailboxName + "@" +msg.Envelope.To[0].HostName+"]",)
 					continue
 				}
 
@@ -148,8 +156,10 @@ func findUnReadMail(roundTime int) {
 					repEmailMyAddr := msg.Envelope.To[0].MailboxName + "@" + msg.Envelope.To[0].HostName
 					//马甲号地址
 					repEmailMajiaAddr := msg.Envelope.From[0].MailboxName + "@" + msg.Envelope.From[0].HostName
-					reqEmailTitl := GetRandromTxt(20)
-					reqEmailCont := GetRandromTxt(50)
+					randSeed := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+					reqEmailTitl := GetRandromTxt(randSeed.Intn(20)+30)
+					reqEmailCont := GetRandromTxt(randSeed.Intn(100)+100)
 
 					logger.Debug("开始回复邮件：", repEmailMajiaAddr)
 
@@ -172,7 +182,8 @@ func findUnReadMail(roundTime int) {
 			seqset.AddNum(uids...)
 			// First mark the message as deleted
 			item := imap.FormatFlagsOp(imap.AddFlags, true)
-			flags := []interface{}{imap.SeenFlag}
+			//标记已读，并删除
+			flags := []interface{}{imap.SeenFlag, imap.DeletedFlag}
 			if err := c.Store(seqset, item, flags, nil); err != nil {
 				logger.Error(err)
 			}
@@ -182,6 +193,7 @@ func findUnReadMail(roundTime int) {
 		logger.Debug("暂时没有未读邮件")
 	}
 	logger.Debug("==================== >>>>>>>>>>>>>>>>>>>>>>> 第["+strconv.Itoa(roundTime)+"]轮登录邮箱操作结束")
+	logger.Debug("")
 }
 
 
@@ -227,9 +239,9 @@ func SendMail(mailFrom string, mailTo string, subject string, body string) error
 		m.SetAddressHeader("From", mailFrom, mailFrom)
 		m.SetAddressHeader("To", mailTo, mailTo)
 		m.SetHeader("Subject", subject)
-		m.SetBody("text/html", "<h1>"+subject+"</h1>"+"<span>"+body+"</span>")
+		m.SetBody("text/html", body)
 		sendCloser.Send(mailFrom, []string{mailTo}, m)
-		logger.Debug("发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
+		logger.Debug(">>>>>>>>>>>> 发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
 	}
 
 
@@ -291,6 +303,99 @@ func GetRandromTxt(getCount int) string {
 	nameRune := []rune(reStr)
 
 	return string(nameRune[1 : getCount])
+}
+
+//清空所有的邮件，包括垃圾邮件等
+func clearAllEmail(){
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Debug("==============================================")
+			logger.Debug("清空邮箱逻辑异常：", err)
+			logger.Debug("==============================================")
+		}
+	}()
+
+	logger.Debug("=======>>>>> 开始删除邮件的登录邮箱操作")
+
+	logger.Debug("开始查询新邮件")
+	inHos,_ := Cfg.GetValue("InboxMail", "host")
+	inPost,_ := Cfg.GetValue("InboxMail", "port")
+	c, err := client.DialTLS(inHos+":"+inPost, nil)
+	if err != nil {
+		logger.Error(err)
+	}
+	logger.Debug("获取链接成功")
+	defer c.Logout()
+
+	inName,_ := Cfg.GetValue("InboxMail", "name")
+	inPwd,_ := Cfg.GetValue("InboxMail", "pwd")
+
+	if err := c.Login(inName, inPwd); err != nil {
+		logger.Error(err)
+	}
+	logger.Debug("登录邮箱成功")
+
+	//每5秒查询一下收件箱，读取配置
+	readInBoxTimeStr,_ := Cfg.GetValue("Sys", "readInBoxTime")
+	readInBoxTime, err := strconv.ParseInt(readInBoxTimeStr, 10, 64)
+
+	//每获取多少次收件箱，就重新登录一次
+	reloginNumStr,_ := Cfg.GetValue("Sys", "reloginNum")
+	reloginNum, err := strconv.Atoi(reloginNumStr)
+
+
+	for i:=1; i<reloginNum; i++ {
+		now  := time.Now()
+		//now.Format 方法格式化
+		timeStr := fmt.Sprint(now.Format("2006-01-02 15:04:05"))
+		logger.Debug(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
+		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
+		logger.Debug("")
+		logger.Debug("+++++++ 开始第["+strconv.Itoa(i)+"]次读取收件箱 +++++++ ")
+
+		c.Select("INBOX", false)
+
+		logger.Debug("读取收件箱 Select 完成")
+
+		//筛选所有未读的邮件
+		criteria := imap.NewSearchCriteria()
+		criteria.WithoutFlags = []string{imap.SeenFlag, imap.DeletedFlag}
+		uidsOrd, err := c.Search(criteria)
+		if err != nil {
+			logger.Debug(err)
+		}
+		logger.Debug("读取收件箱 Search 完成 uidsOrd：", len(uidsOrd))
+		uids := uidsOrd
+		logger.Debug("uids:",uids)
+
+		if 0 < len(uids) {
+			logger.Debug("开始处理：", len(uids))
+			seqset := new(imap.SeqSet)
+			seqset.AddNum(uids...)
+
+			items := []imap.FetchItem{imap.FetchEnvelope, imap.FetchFlags}
+			messages := make(chan *imap.Message, len(uids))
+			err = c.Fetch(seqset, items, messages)
+
+			logger.Debug("查询收件箱完成，收件箱邮件数量：", len(uids))
+
+			//将未读的邮件标记上已读
+			seqset = new(imap.SeqSet)
+			seqset.AddNum(uids...)
+			// First mark the message as deleted
+			item := imap.FormatFlagsOp(imap.AddFlags, true)
+			//标记已读，并删除
+			flags := []interface{}{imap.SeenFlag, imap.DeletedFlag}
+			if err := c.Store(seqset, item, flags, nil); err != nil {
+				logger.Error(err)
+			}
+			logger.Debug("都标记成已读了并删除")
+		}
+
+		logger.Debug("暂时没有未读邮件")
+	}
+	logger.Debug("==================== >>>>>>>>>>>>>>>>>>>>>>> 邮箱操作结束")
+	logger.Debug("")
 }
 
 

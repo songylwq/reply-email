@@ -39,7 +39,7 @@ func ReadBlock(filePth string, bufSize int, hookfn func([]byte)) error {
 }
 
 func main() {
-	filePathUrl := fmt.Sprintf("data%c文本模板", os.PathSeparator)
+	filePathUrl := fmt.Sprintf("data%ct1.txt", os.PathSeparator)
 	fmt.Println("开始读取:", filePathUrl)
 	ReadBlock(filePathUrl, 10000, processBlock)
 }

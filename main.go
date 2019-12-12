@@ -15,6 +15,8 @@ import (
 	"github.com/Unknwon/goconfig"
 	"strings"
 	"github.com/wonderivan/logger"
+	"io/ioutil"
+	"encoding/base64"
 )
 
 //邮件对象
@@ -33,6 +35,8 @@ var TxtContNum = 0
 var Cfg *goconfig.ConfigFile
 //模板内容
 var tempMap = make(map[string]string)
+//模板图片内容
+var tempImgMap = make(map[string]string)
 
 func main() {
 	//通过配置文件配置,初始化日志配置
@@ -116,7 +120,7 @@ func findUnReadMail(roundTime int) {
 		logger.Debug(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
 		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
 		logger.Debug("")
-		logger.Debug("+++++++ 开始第["+strconv.Itoa(roundTime)+"]轮["+strconv.Itoa(i)+"]次读取收件箱 +++++++ ")
+		logger.Debug("======= 开始第["+strconv.Itoa(roundTime)+"]轮["+strconv.Itoa(i)+"]次读取收件箱 ======= ")
 
 		c.Select("INBOX", false)
 
@@ -145,7 +149,7 @@ func findUnReadMail(roundTime int) {
 				//马甲号地址限制，只是给163、126的邮件回信
 				if !strings.EqualFold("163.com", msg.Envelope.From[0].HostName) &&
 					!strings.EqualFold("126.com", msg.Envelope.From[0].HostName) {
-					logger.Debug("系统设置不回复的地址：From: ",
+					logger.Debug("XXXXXXXXXXXXX 系统设置不回复的地址：From: ",
 						"["+msg.Envelope.From[0].MailboxName + "@" +msg.Envelope.From[0].HostName+"]",
 						" TO: ",
 						"["+msg.Envelope.To[0].MailboxName + "@" +msg.Envelope.To[0].HostName+"]",)
@@ -156,6 +160,7 @@ func findUnReadMail(roundTime int) {
 				time.Sleep(time.Second)
 
 				go func(msg *imap.Message){
+					logger.Debug("开始回复邮件...")
 					//参考报文 {"PersonalName":"\" 芝麻开花 \"","AtDomainList":"","MailboxName":"350956892","HostName":"qq.com"}
 					//我的收件账户地址
 					repEmailMyAddr := msg.Envelope.To[0].MailboxName + "@" + msg.Envelope.To[0].HostName
@@ -243,6 +248,7 @@ func SendMail(mailFrom string, mailTo string, title string) error {
 		tempNum, _ := strconv.Atoi(tempNumStr)
 		randZh := rand.New(rand.NewSource(time.Now().UnixNano()))
 		randTempNum := randZh.Intn(tempNum)
+		logger.Debug(mailTo+"-回复邮件采用模板：", randTempNum)
 		bodyStr := tempMap["temp_"+strconv.Itoa(randTempNum)]
 		//替换图片、文本内容
 		reqEmailCont1 := GetRandromTxt(randSeed.Intn(100)+100)
@@ -259,7 +265,7 @@ func SendMail(mailFrom string, mailTo string, title string) error {
 
 		m.SetBody("text/html", bodyStr)
 		sendCloser.Send(mailFrom, []string{mailTo}, m)
-		logger.Debug(">>>>>>>>>>>> 发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
+		logger.Debug("========>>>>> 发送邮件from["+mailFrom+"],to["+mailTo+"]成功")
 	}
 
 
@@ -308,12 +314,15 @@ func ReadTxtCont(filePth string, bufSize int, hookfn func([]byte)) error {
 
 //随机获取一个指定长度的文本
 func GetRandromTxt(getCount int) string {
+	//先休眠300纳秒要不然连续读取时会出现数据相同的问题
+	time.Sleep(300*time.Nanosecond)
+
 	//获取随机数
 	randZh := rand.New(rand.NewSource(time.Now().UnixNano()))
 	randId := randZh.Intn(TxtContNum)
 	reStr := TxtCont[randId]
 	for getCount > len([]rune(reStr)) {
-		randZh = rand.New(rand.NewSource(time.Now().UnixNano()))
+		randZh = rand.New(rand.NewSource(time.Now().UnixNano()+int64(len([]rune(reStr)))))
 		randId = randZh.Intn(TxtContNum)
 		reStr += TxtCont[randId]
 	}
@@ -368,7 +377,7 @@ func clearAllEmail(){
 		logger.Debug(readInBoxTimeStr+"秒后读取收件箱["+timeStr+"]...")
 		time.Sleep(time.Second * (time.Duration(readInBoxTime)))
 		logger.Debug("")
-		logger.Debug("+++++++ 开始第["+strconv.Itoa(i)+"]次读取收件箱 +++++++ ")
+		logger.Debug("======= 开始第["+strconv.Itoa(i)+"]次读取收件箱 ======= ")
 
 		c.Select("INBOX", false)
 
@@ -414,6 +423,16 @@ func clearAllEmail(){
 	logger.Debug("==================== >>>>>>>>>>>>>>>>>>>>>>> 邮箱操作结束")
 	logger.Debug("")
 }
+
+//初始化模板图片
+func initTempImg() error {
+	ff, _ := ioutil.ReadFile("data/img/img (1).png")               //我还是喜欢用这个快速读文件
+	bufstore := make([]byte, 5000000)                     //数据缓存
+	base64.StdEncoding.Encode(bufstore, ff)               // 文件转base64
+	fmt.Println(string())
+	return nil
+}
+
 
 //初始化邮件模板
 func initEmailTemp() error{

@@ -5,6 +5,9 @@ import (
 	"io"
 	"os"
 	"fmt"
+	"github.com/Unknwon/goconfig"
+	"github.com/wonderivan/logger"
+	"strings"
 )
 
 func processBlock(line []byte) {
@@ -39,7 +42,16 @@ func ReadBlock(filePth string, bufSize int, hookfn func([]byte)) error {
 }
 
 func main() {
-	filePathUrl := fmt.Sprintf("data%ct1.txt", os.PathSeparator)
-	fmt.Println("开始读取:", filePathUrl)
-	ReadBlock(filePathUrl, 10000, processBlock)
+
+	Cfg, err := goconfig.LoadConfigFile("config/main.ini")
+	if err != nil{
+		logger.Error("读取配置文件错误：", err)
+	}
+	inHos,_ := Cfg.GetValue("InboxMail", "host")
+	logger.Debug("读取配置文件林成功["+inHos+"]")
+
+	testStr,_ := Cfg.GetValue("Sys", "hostNameBlackList")
+	logger.Debug(testStr)
+	logger.Debug(strings.LastIndex(testStr, "abc.com"))
+
 }

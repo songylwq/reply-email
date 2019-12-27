@@ -42,6 +42,8 @@ var Cfg *goconfig.ConfigFile
 var tempMap = make(map[string]string)
 //模板图片内容
 var TempImgList = make([]TempImg, 5)
+//马甲号邮箱地址列表
+var EmailAccMap = make(map[string]interface{})
 
 func main() {
 	//通过配置文件配置,初始化日志配置
@@ -54,6 +56,8 @@ func main() {
 	initEmailTemp()
 	//初始化模板图片
 	initTempImg()
+	//初始化马甲号邮箱地址列表
+	initEmailAcc()
 
 	roundTime := 1
 	for {
@@ -154,14 +158,31 @@ func findUnReadMail(roundTime int) {
 			logger.Debug("查询收件箱完成，收件箱邮件数量：", len(uids))
 
 			for msg := range messages {
-				//马甲号地址限制，只是给163、126的邮件回信
-				if !strings.EqualFold("163.com", msg.Envelope.From[0].HostName) &&
-					!strings.EqualFold("126.com", msg.Envelope.From[0].HostName) {
-					logger.Debug("XXXXXXXXXXXXX 系统设置不回复的地址：From: ",
+				hostNameBlackList,_ := Cfg.GetValue("Sys", "hostNameBlackList")
+				//回复马甲号地址限制，不给指定黑名单的域名发送邮件
+				if -1 < strings.LastIndex(hostNameBlackList, msg.Envelope.From[0].HostName) {
+					logger.Debug("XXXXXXXXXXXXX 回复邮箱域名地址黑名单，不做回复：From: ",
 						"["+msg.Envelope.From[0].MailboxName + "@" +msg.Envelope.From[0].HostName+"]",
 						" TO: ",
 						"["+msg.Envelope.To[0].MailboxName + "@" +msg.Envelope.To[0].HostName+"]",)
 					continue
+				}
+
+				hostNameWhiteList,_ := Cfg.GetValue("Sys", "hostNameWhiteList")
+
+				//马甲号地址只在邮件白名单回信,不在白名单里面不发送
+				if 0 > strings.LastIndex(hostNameWhiteList, msg.Envelope.From[0].HostName) {
+					logger.Debug("XXXXXXXXXXXXX 不在回复邮箱域名白名单，不回复的地址：From: ",
+						"["+msg.Envelope.From[0].MailboxName + "@" +msg.Envelope.From[0].HostName+"]",
+						" TO: ",
+						"["+msg.Envelope.To[0].MailboxName + "@" +msg.Envelope.To[0].HostName+"]",)
+					continue
+				}
+
+				//只自动回复马甲号列表里的邮件，怎么实现再考虑
+				_,isHave := EmailAccMap[msg.Envelope.From[0].HostName]
+				if isHave {
+
 				}
 
 				logger.Debug("1秒后开始回复下一封邮件...")
@@ -441,6 +462,24 @@ func initTempImg() error {
 		return err
 	}
 	json.Unmarshal([]byte(tempStr), &TempImgList)
+	return nil
+}
+
+//初始化马甲号邮箱地址列表
+func initEmailAcc() error {
+	filePathUrl := fmt.Sprintf("data%cemail_acc.json", os.PathSeparator)
+	logger.Debug("开始读取马甲号邮箱地址列表[%s]", filePathUrl)
+	tempStr,err := ReadFileCont(filePathUrl)
+	if nil != err {
+		return err
+	}
+
+	tmpEmailAccList := make([]string, 5)
+	json.Unmarshal([]byte(tempStr), &tmpEmailAccList)
+	for _,data := range tmpEmailAccList {
+		EmailAccMap[data] = data
+	}
+	logger.Debug("读取马甲号邮箱地址列表[%s]完成，共[%v]条", filePathUrl, len(tmpEmailAccList))
 	return nil
 }
 

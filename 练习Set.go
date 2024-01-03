@@ -14,11 +14,7 @@ func main() {
 	for _,data := range EmailAccList {
 		setObj[data] = data
 	}
-
 	fmt.Println(setObj["ges.com"])
-
 	d,ok := setObj["ges.com1"]
-	fmt.Println(d," === ", ok)
-
-
+	fmt.Println(d," == ", ok)
 }
